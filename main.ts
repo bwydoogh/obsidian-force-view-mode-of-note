@@ -1,112 +1,47 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { WorkspaceLeaf, Plugin, TextFileView, ViewStateResult, RequestParam, Modal, App, request } from 'obsidian';
 
-interface MyPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class ViewModeByFrontmatterPlugin extends Plugin {
+	OBSIDIAN_UI_MODE_KEY = 'obsidian_ui_mode';
 
 	async onload() {
-		console.log('loading plugin');
+		const readViewModeFromFrontmatterAndToggle = async (leaf: WorkspaceLeaf) => {
+			let view = leaf.view instanceof TextFileView ? leaf.view : null;
 
-		await this.loadSettings();
-
-		this.addRibbonIcon('dice', 'Sample Plugin', () => {
-			new Notice('This is a notice!');
-		});
-
-		this.addStatusBarItem().setText('Status Bar Text');
-
-		this.addCommand({
-			id: 'open-sample-modal',
-			name: 'Open Sample Modal',
-			// callback: () => {
-			// 	console.log('Simple Callback');
-			// },
-			checkCallback: (checking: boolean) => {
-				let leaf = this.app.workspace.activeLeaf;
-				if (leaf) {
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-					return true;
-				}
-				return false;
+			if (null === view) {
+				return;
 			}
-		});
 
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+			let state = view.getState();
 
-		this.registerCodeMirror((cm: CodeMirror.Editor) => {
-			console.log('codemirror', cm);
-		});
+			// ... get frontmatter data and search for a key indicating the desired view mode
+			// and when the given key is present ... set it to the declared mode
+			const fileCache = this.app.metadataCache.getFileCache(view.file);
+			const fileDeclaredUIMode = fileCache !== null && fileCache.frontmatter ? fileCache.frontmatter[this.OBSIDIAN_UI_MODE_KEY] : null;
 
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+			if (null !== fileDeclaredUIMode) {
+				if (['source', 'preview', 'live'].includes(fileDeclaredUIMode)
+					&& state.mode !== fileDeclaredUIMode) {
+					state.mode = fileDeclaredUIMode;
+					view.setState(state, new ViewModeByFrontmatterViewStateResult());
+				}
 
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
+				return;
+			}
 
-	onunload() {
-		console.log('unloading plugin');
-	}
+			const defaultViewMode = this.app.vault.config.defaultViewMode ? this.app.vault.config.defaultViewMode : 'source';
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
+			if (state.mode !== defaultViewMode) {
+				state.mode = defaultViewMode;
+				view.setState(state, new ViewModeByFrontmatterViewStateResult());
+			}
+		};
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		let {contentEl} = this;
-		contentEl.empty();
+		// "active-leaf-change": open note, navigate to note -> will check whether
+		// the view mode needs to be set; default view mode setting is ignored.
+		this.registerEvent(this.app.workspace.on("active-leaf-change", readViewModeFromFrontmatterAndToggle));
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		let {containerEl} = this;
-
-		containerEl.empty();
-
-		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue('')
-				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
+class ViewModeByFrontmatterViewStateResult implements ViewStateResult {
+	// ...
 }
