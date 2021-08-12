@@ -1,11 +1,11 @@
-import { WorkspaceLeaf, Plugin, TextFileView, ViewStateResult, RequestParam, Modal, App, request } from 'obsidian';
+import { WorkspaceLeaf, Plugin, TextFileView, ViewStateResult, RequestParam, Modal, App, request, MarkdownView } from 'obsidian';
 
 export default class ViewModeByFrontmatterPlugin extends Plugin {
 	OBSIDIAN_UI_MODE_KEY = 'obsidian_ui_mode';
 
 	async onload() {
 		const readViewModeFromFrontmatterAndToggle = async (leaf: WorkspaceLeaf) => {
-			let view = leaf.view instanceof TextFileView ? leaf.view : null;
+			let view = leaf.view instanceof MarkdownView ? leaf.view : null;
 
 			if (null === view) {
 				return;
