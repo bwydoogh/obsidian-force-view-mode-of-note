@@ -1,7 +1,7 @@
 import { WorkspaceLeaf, Plugin, MarkdownView } from 'obsidian';
 
 export default class ViewModeByFrontmatterPlugin extends Plugin {
-	OBSIDIAN_UI_MODE_KEY = 'obsidian_ui_mode';
+	OBSIDIAN_UI_MODE_KEY = 'obsidianUIMode';
 
 	async onload() {
 		const readViewModeFromFrontmatterAndToggle = async (leaf: WorkspaceLeaf) => {
@@ -40,8 +40,4 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 		// the view mode needs to be set; default view mode setting is ignored.
 		this.registerEvent(this.app.workspace.on("active-leaf-change", readViewModeFromFrontmatterAndToggle));
 	}
-}
-
-class ViewModeByFrontmatterViewStateResult implements ViewStateResult {
-	// ...
 }

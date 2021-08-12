@@ -1,11 +1,11 @@
 ## Obsidian force note view mode
 
-This plug-in allows you to indicate through front matter that a note should always be opened in a certain view mode. This is done through the key `obsidian_ui_mode`, which can have the value `source` or `preview`.
+This plug-in allows you to indicate through front matter that a note should always be opened in a certain view mode. This is done through the key `obsidianUIMode`, which can have the value `source` or `preview`.
 
 Add below snippet (front matter) to your note ...
 ```
 ---
-obsidian_ui_mode: source
+obsidianUIMode: source
 ---
 ```
 ... and this will force the note to open in "source" (edit) mode.
@@ -14,7 +14,7 @@ obsidian_ui_mode: source
 Similar, ... add below snippet to your note ...
 ```
 ---
-obsidian_ui_mode: preview
+obsidianUIMode: preview
 ---
 ```
 ... and this will always open the note in "preview" mode.
