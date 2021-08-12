@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, Plugin, TextFileView, ViewStateResult, RequestParam, Modal, App, request, MarkdownView } from 'obsidian';
+import { WorkspaceLeaf, Plugin, MarkdownView } from 'obsidian';
 
 export default class ViewModeByFrontmatterPlugin extends Plugin {
 	OBSIDIAN_UI_MODE_KEY = 'obsidian_ui_mode';
@@ -11,7 +11,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 				return;
 			}
 
-			let state = view.getState();
+			let state = leaf.getViewState();
 
 			// ... get frontmatter data and search for a key indicating the desired view mode
 			// and when the given key is present ... set it to the declared mode
@@ -20,9 +20,9 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
 			if (null !== fileDeclaredUIMode) {
 				if (['source', 'preview', 'live'].includes(fileDeclaredUIMode)
-					&& state.mode !== fileDeclaredUIMode) {
-					state.mode = fileDeclaredUIMode;
-					view.setState(state, new ViewModeByFrontmatterViewStateResult());
+					&& state.state.mode !== fileDeclaredUIMode) {
+					state.state.mode = fileDeclaredUIMode;
+					leaf.setViewState(state);
 				}
 
 				return;
@@ -30,9 +30,9 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
 			const defaultViewMode = this.app.vault.config.defaultViewMode ? this.app.vault.config.defaultViewMode : 'source';
 
-			if (state.mode !== defaultViewMode) {
-				state.mode = defaultViewMode;
-				view.setState(state, new ViewModeByFrontmatterViewStateResult());
+			if (state.state.mode !== defaultViewMode) {
+				state.state.mode = defaultViewMode;
+				leaf.setViewState(state);
 			}
 		};
 
