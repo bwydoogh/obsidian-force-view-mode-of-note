@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-view-mode-by-frontmatter",
 	"name": "Force note view mode (preview, source) using front matter",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.9.12",
 	"description": "This plugin allows to force the view mode for a note by using front matter: YAML block with 'obsidian_ui_mode' as key.",
 	"author": "Benny Wydooghe",

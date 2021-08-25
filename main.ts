@@ -11,8 +11,6 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 				return;
 			}
 
-			let state = leaf.getViewState();
-
 			// ... get frontmatter data and search for a key indicating the desired view mode
 			// and when the given key is present ... set it to the declared mode
 			const fileCache = this.app.metadataCache.getFileCache(view.file);
@@ -20,8 +18,11 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
 			if (null !== fileDeclaredUIMode) {
 				if (['source', 'preview', 'live'].includes(fileDeclaredUIMode)
-					&& state.state.mode !== fileDeclaredUIMode) {
+					&& view.getMode() !== fileDeclaredUIMode) {
+					let state = leaf.getViewState();
+
 					state.state.mode = fileDeclaredUIMode;
+
 					leaf.setViewState(state);
 				}
 
@@ -30,8 +31,11 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
 			const defaultViewMode = this.app.vault.config.defaultViewMode ? this.app.vault.config.defaultViewMode : 'source';
 
-			if (state.state.mode !== defaultViewMode) {
+			if (view.getMode() !== defaultViewMode) {
+				let state = leaf.getViewState();
+
 				state.state.mode = defaultViewMode;
+
 				leaf.setViewState(state);
 			}
 		};
