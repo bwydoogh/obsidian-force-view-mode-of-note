@@ -16,7 +16,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 			const fileCache = this.app.metadataCache.getFileCache(view.file);
 			const fileDeclaredUIMode = fileCache !== null && fileCache.frontmatter ? fileCache.frontmatter[this.OBSIDIAN_UI_MODE_KEY] : null;
 
-			if (null !== fileDeclaredUIMode) {
+			if (fileDeclaredUIMode) {
 				if (['source', 'preview', 'live'].includes(fileDeclaredUIMode)
 					&& view.getMode() !== fileDeclaredUIMode) {
 					let state = leaf.getViewState();
