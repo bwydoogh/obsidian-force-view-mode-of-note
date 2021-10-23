@@ -108,7 +108,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on(
         "active-leaf-change",
-        debounce(readViewModeFromFrontmatterAndToggle, 1000)
+        debounce(readViewModeFromFrontmatterAndToggle, 500)
       )
     );
   }
