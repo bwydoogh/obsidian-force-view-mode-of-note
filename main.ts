@@ -39,11 +39,8 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         ) => {
             let view = leaf.view instanceof MarkdownView ? leaf.view : null
 
-            if (null === view) {
-                this.openedFiles = resetOpenedNotes(this.app)
-
-                return
-            }
+            if (null === view) {				if (true == this.settings.ignoreOpenFiles) {                	this.openedFiles = resetOpenedNotes(this.app)				}	            
+				return            }
 
             // if setting is true, nothing to do if this was an open note
             if (
@@ -76,11 +73,9 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
                     leaf.setViewState(state)
                 }
-
-                this.openedFiles = resetOpenedNotes(this.app)
-
-                return
-            }
+				if (true == this.settings.ignoreOpenFiles) {
+                	this.openedFiles = resetOpenedNotes(this.app)				}
+                return            }
 
             const defaultViewMode = this.app.vault.config.defaultViewMode
                 ? this.app.vault.config.defaultViewMode
@@ -106,8 +101,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         this.registerEvent(
             this.app.workspace.on(
                 "active-leaf-change",
-                debounce(readViewModeFromFrontmatterAndToggle, 100)
-            )
+                debounce(readViewModeFromFrontmatterAndToggle, 1000)            )
         )
     }
 
