@@ -24,6 +24,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
   settings: ViewModeByFrontmatterSettings;
 
   OBSIDIAN_UI_MODE_KEY = "obsidianUIMode";
+  OBSIDIAN_EDITING_MODE_KEY = "obsidianEditingMode";
 
   openedFiles: String[];
 
@@ -64,18 +65,33 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         fileCache !== null && fileCache.frontmatter
           ? fileCache.frontmatter[this.OBSIDIAN_UI_MODE_KEY]
           : null;
+      const fileDeclaredEditingMode =
+        fileCache !== null && fileCache.frontmatter
+          ? fileCache.frontmatter[this.OBSIDIAN_EDITING_MODE_KEY]
+          : null;
+
+      let state = leaf.getViewState();
 
       if (fileDeclaredUIMode) {
         if (
           ["source", "preview", "live"].includes(fileDeclaredUIMode) &&
           view.getMode() !== fileDeclaredUIMode
         ) {
-          let state = leaf.getViewState();
-
           state.state.mode = fileDeclaredUIMode;
-
-          leaf.setViewState(state);
         }
+      }
+
+      if (fileDeclaredEditingMode) {
+        const shouldBeSourceMode = fileDeclaredEditingMode == 'source';
+        if (
+          ["source", "live"].includes(fileDeclaredEditingMode)
+        ) {
+          state.state.source = shouldBeSourceMode;
+        }
+      }
+
+      if (fileDeclaredUIMode || fileDeclaredEditingMode) {
+        leaf.setViewState(state);
 
         if (true == this.settings.ignoreOpenFiles) {
           this.openedFiles = resetOpenedNotes(this.app);
