@@ -10,7 +10,7 @@ Example: add below snippet (front matter) to your note ...
 ```
 ---
 obsidianUIMode: source
-obsidianEditingModel: live
+obsidianEditingMode: live
 ---
 ```
 ... and this will force the note to open in "live preview" edit mode.
