@@ -2,9 +2,7 @@
 
 This plug-in allows you to indicate through front matter that a note should always be opened in a certain view mode or editing mode. 
 
-Changing the **view mode** can be done through the key `obsidianUIMode`, which can have the value `source` or `preview`. 
-
-Changing the **editing mode** happens by declaring the key `obsidianEditingMode`; it takes `live` or `source` as value.
+Changing the **view mode** can be done through the key `obsidianUIMode`, which can have the value `source` or `preview`. Changing the **editing mode** happens by declaring the key `obsidianEditingMode`; it takes `live` or `source` as value.
 
 Example: add below snippet (front matter) to your note ...
 ```
