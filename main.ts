@@ -104,14 +104,18 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         ? this.app.vault.config.defaultViewMode
         : "source";
 
+      const defaultEditingModeIsLivePreview = this.app.vault.config.livePreview;
+
       if (!this.settings.ignoreForceViewAll) {
+        let state = leaf.getViewState();
+
         if (view.getMode() !== defaultViewMode) {
-          let state = leaf.getViewState();
-
           state.state.mode = defaultViewMode;
-
-          leaf.setViewState(state);
         }
+
+        state.state.source = defaultEditingModeIsLivePreview ? false : true;
+
+        leaf.setViewState(state);
 
         this.openedFiles = resetOpenedNotes(this.app);
       }
@@ -124,7 +128,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on(
         "active-leaf-change",
-        debounce(readViewModeFromFrontmatterAndToggle, 500)
+        debounce(readViewModeFromFrontmatterAndToggle, 300)
       )
     );
   }
