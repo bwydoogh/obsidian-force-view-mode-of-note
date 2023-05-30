@@ -104,7 +104,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         ? this.app.vault.config.defaultViewMode
         : "source";
 
-      const defaultEditingModeIsLivePreview = this.app.vault.config.livePreview;
+      const defaultEditingModeIsLivePreview = this.app.vault.config.livePreview === undefined ? true : this.app.vault.config.livePreview;
 
       if (!this.settings.ignoreForceViewAll) {
         let state = leaf.getViewState();
