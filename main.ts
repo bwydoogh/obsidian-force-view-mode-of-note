@@ -70,7 +70,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         if (folderMode.folder !== '' && folderMode.viewMode) {
           const folder = this.app.vault.getAbstractFileByPath(folderMode.folder);
           if (folder instanceof TFolder) {
-            if (view.file.parent === folder) {
+            if (view.file.parent === folder || view.file.parent.path.startsWith(folder.path)) {
 
               if (!state.state) { // jsut to be on the safe side
                 continue
