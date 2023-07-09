@@ -64,10 +64,10 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
 
       // check if in a declared folder
-      let folderModeState = false;
+      let folderModeState: {source: boolean, mode: string} | null = null;
 
       for (const folderMode of this.settings.folders) {
-        if (folderMode.folder !== '' && folderMode.viewMode && folderMode.viewMode !== 'default') {
+        if (folderMode.folder !== '' && folderMode.viewMode) {
           const folder = this.app.vault.getAbstractFileByPath(folderMode.folder);
           if (folder instanceof TFolder) {
             if (view.file.parent === folder) {
@@ -75,28 +75,36 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
               if (!state.state) { // jsut to be on the safe side
                 continue
               }
-
+                
               const [key, mode] = folderMode.viewMode.split(':').map((s) => s.trim());
               
-              state.state.mode = mode
+              if (key === "default") {
+                folderModeState = null; // ensures that no state is set
+                continue
+              } else if (!["live", "preview", "source"].includes(mode)) {
+                continue
+              }
+
+              folderModeState = {...state.state}
+
+              folderModeState.mode = mode
 
               switch (key) {
                 case this.OBSIDIAN_EDITING_MODE_KEY: {
                   // according to my tests, ui mode : source and edit mode : live are the same???
                   if (mode == "live") {
-                    state.state.source = false
-                    state.state.mode = 'source'
+                    folderModeState.source = false
+                    folderModeState.mode = 'source'
                   } else {
-                    state.state.source = true
+                    folderModeState.source = true
                   }
                   break;
                 }
                 case this.OBSIDIAN_UI_MODE_KEY: 
-                  state.state.source = false
+                  folderModeState.source = false
                   break;
               }
 
-              folderModeState = true;
             }
           } else {
             console.warn(`ForceViewMode: Folder ${folderMode.folder} does not exist or is not a folder.`);
@@ -105,7 +113,11 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
       }
 
       if (folderModeState) {
-        leaf.setViewState(state);
+        if (state.state.mode !== folderModeState.mode || state.state.source !== folderModeState.source) {
+          state.state.mode = folderModeState.mode;
+          state.state.source = folderModeState.source;
+          await leaf.setViewState(state);
+        }
         return
       }
 
@@ -141,7 +153,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
       }
 
       if (fileDeclaredUIMode || fileDeclaredEditingMode) {
-        leaf.setViewState(state);
+        await leaf.setViewState(state);
 
         if (true == this.settings.ignoreOpenFiles) {
           this.openedFiles = resetOpenedNotes(this.app);
@@ -165,7 +177,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
         state.state.source = defaultEditingModeIsLivePreview ? false : true;
 
-        leaf.setViewState(state);
+        await leaf.setViewState(state);
 
         this.openedFiles = resetOpenedNotes(this.app);
       }
