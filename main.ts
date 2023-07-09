@@ -331,7 +331,7 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             folderDesc.createEl("br"),
             "Note that this will force the view mode on all the notes in the folder, even if they have a different view mode set in their frontmatter.",
             folderDesc.createEl("br"),
-            "Precendence is bottom (highest) to top (lowest), so if you have child folders specified, make sure to put them below their parent folder."
+            "Precedence is bottom (highest) to top (lowest), so if you have child folders specified, make sure to put them below their parent folder."
         );
 
     new Setting(this.containerEl).setDesc(folderDesc);
