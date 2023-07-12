@@ -292,22 +292,6 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
-
-      
-    new Setting(containerEl)
-      .setName("Ignore force view when not in frontmatter")
-      .setDesc(
-        "Never change the view mode on a note that was opened from another one in a certain view mode"
-      )
-      .addToggle((checkbox) => {
-        checkbox
-          .setValue(this.plugin.settings.ignoreForceViewAll)
-          .onChange(async (value) => {
-            this.plugin.settings.ignoreForceViewAll = value;
-            await this.plugin.saveSettings();
-          });
-      });
-
     new Setting(containerEl)
       .setName("Ignore force view when not in frontmatter")
       .setDesc(
