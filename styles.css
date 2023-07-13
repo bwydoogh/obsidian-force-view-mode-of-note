@@ -1,0 +1,13 @@
+.force-view-mode-div > .setting-item > .setting-item-control {
+    justify-content: space-around;
+    padding: 0;
+    width: 100%;
+}
+
+.force-view-mode-folder > .setting-item > .setting-item-control > *:first-child {
+    flex: 2 1 0;
+}
+
+.force-view-mode-folder > .setting-item > .setting-item-control > *:nth-child(2) {
+    flex: 1 1 0;
+}
