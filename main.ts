@@ -62,7 +62,6 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
       let state = leaf.getViewState();
 
-
       // check if in a declared folder
       let folderModeState: {source: boolean, mode: string} | null = null;
 
@@ -71,8 +70,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
           const folder = this.app.vault.getAbstractFileByPath(folderMode.folder);
           if (folder instanceof TFolder) {
             if (view.file.parent === folder || view.file.parent.path.startsWith(folder.path)) {
-
-              if (!state.state) { // jsut to be on the safe side
+              if (!state.state) { // just to be on the safe side
                 continue
               }
                 
@@ -91,7 +89,6 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
               switch (key) {
                 case this.OBSIDIAN_EDITING_MODE_KEY: {
-                  // according to my tests, ui mode : source and edit mode : live are the same???
                   if (mode == "live") {
                     folderModeState.source = false
                     folderModeState.mode = 'source'
@@ -113,12 +110,15 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
       }
 
       if (folderModeState) {
-        if (state.state.mode !== folderModeState.mode || state.state.source !== folderModeState.source) {
+        if (state.state.mode !== folderModeState.mode || 
+          state.state.source !== folderModeState.source) {
           state.state.mode = folderModeState.mode;
           state.state.source = folderModeState.source;
+
           await leaf.setViewState(state);
         }
-        return
+
+        return;
       }
 
       // ... get frontmatter data and search for a key indicating the desired view mode
@@ -253,11 +253,7 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
- 
-
     const createHeader = (text: string) => containerEl.createEl("h2", { text });
-
-    // Add desctiption
 
     const desc = document.createDocumentFragment();
     desc.append(
@@ -279,7 +275,6 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
     );
 
     new Setting(this.containerEl).setDesc(desc);
-
 
     new Setting(containerEl)
       .setName("Ignore opened files")
@@ -306,104 +301,107 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
           });
       });
 
-
     createHeader("Folders")
 
     const folderDesc = document.createDocumentFragment();
     folderDesc.append(
-            "Specify a specific view mode for notes in a given folder.",
-            folderDesc.createEl("br"),
-            "Note that this will force the view mode on all the notes in the folder, even if they have a different view mode set in their frontmatter.",
-            folderDesc.createEl("br"),
-            "Precedence is bottom (highest) to top (lowest), so if you have child folders specified, make sure to put them below their parent folder."
-        );
+        "Specify a view mode for notes in a given folder.",
+        folderDesc.createEl("br"),
+        "Note that this will force the view mode on all the notes in the folder, even if they have a different view mode set in their frontmatter.",
+        folderDesc.createEl("br"),
+        "Precedence is from bottom (highest) to top (lowest), so if you have child folders specified, make sure to put them below their parent folder."
+    );
 
     new Setting(this.containerEl).setDesc(folderDesc);
 
     new Setting(this.containerEl)
-            .setDesc("Add new folder")
-            .addButton((button) => {
-                button
-                    .setTooltip("Add additional folder to the list")
-                    .setButtonText("+")
-                    .setCta()
-                    .onClick(async () => {
-                        this.plugin.settings.folders.push({
-                            folder: "",
-                            viewMode: "",
-                        });
-                        await this.plugin.saveSettings();
-                        this.display();
-                    });
+      .setDesc("Add new folder")
+      .addButton((button) => {
+        button
+          .setTooltip("Add another folder to the list")
+          .setButtonText("+")
+          .setCta()
+          .onClick(async () => {
+            this.plugin.settings.folders.push({
+              folder: "",
+              viewMode: "",
             });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
 
 
     this.plugin.settings.folders.forEach(
       (folderMode, index) => {
-          const div = containerEl.createEl("div");
-          div.addClass("force-view-mode-div")
-          div.addClass("force-view-mode-folder")
+        const div = containerEl.createEl("div");
+        div.addClass("force-view-mode-div")
+        div.addClass("force-view-mode-folder")
 
-          const s = new Setting(this.containerEl)
-              .addSearch((cb) => {
-                  cb.setPlaceholder("Example: folder1/templates")
-                      .setValue(folderMode.folder)
-                      .onChange(async (newFolder) => {
-                          if (
-                            newFolder &&
-                              this.plugin.settings.folders.some(
-                                  (e) => e.folder == newFolder
-                              )
-                          ) {
-                              console.error("ForceViewMode: This folder already has a template associated with", newFolder);
-                              return;
-                          }
+        const s = new Setting(this.containerEl)
+          .addSearch((cb) => {
+            cb.setPlaceholder("Example: folder1/templates")
+              .setValue(folderMode.folder)
+              .onChange(async (newFolder) => {
+                if (
+                  newFolder &&
+                  this.plugin.settings.folders.some(
+                    (e) => e.folder == newFolder
+                  )
+                ) {
+                  console.error("ForceViewMode: This folder already has a template associated with", newFolder);
 
-                          this.plugin.settings.folders[
-                              index
-                          ].folder = newFolder;
-                          await this.plugin.saveSettings();
-                      });
-              })
-              .addDropdown(cb => {
-                const modes = [
-                  "default",
-                  "obsidianUIMode: preview",
-                  "obsidianUIMode: source",
-                  "obsidianEditingMode: live",
-                  "obsidianEditingMode: source",
-                ]
+                  return;
+                }
 
-                modes.forEach(mode => {
-                  cb.addOption(mode, mode);
-                });
-        
-                cb.setValue(folderMode.viewMode || "default")
-                  .onChange(async (value) => {
-                    this.plugin.settings.folders[
-                      index
-                    ].viewMode = value;
-                    await this.plugin.saveSettings();
-                  });
-              })
-              .addExtraButton((cb) => {
-                  cb.setIcon("cross")
-                      .setTooltip("Delete")
-                      .onClick(async () => {
-                          this.plugin.settings.folders.splice(
-                              index,
-                              1
-                          );
-                          await this.plugin.saveSettings();
-                          this.display();
-                      });
+                this.plugin.settings.folders[
+                  index
+                ].folder = newFolder;
+
+                await this.plugin.saveSettings();
               });
-          s.infoEl.remove();
+          })
+          .addDropdown(cb => {
+            const modes = [
+              "default",
+              "obsidianUIMode: preview",
+              "obsidianUIMode: source",
+              "obsidianEditingMode: live",
+              "obsidianEditingMode: source",
+            ]
 
-          div.appendChild(containerEl.lastChild as Node);
+            modes.forEach(mode => {
+              cb.addOption(mode, mode);
+            });
+
+            cb.setValue(folderMode.viewMode || "default")
+              .onChange(async (value) => {
+                this.plugin.settings.folders[
+                  index
+                ].viewMode = value;
+
+                await this.plugin.saveSettings();
+              });
+          })
+          .addExtraButton((cb) => {
+            cb.setIcon("cross")
+              .setTooltip("Delete")
+              .onClick(async () => {
+                this.plugin.settings.folders.splice(
+                  index,
+                  1
+                );
+
+                await this.plugin.saveSettings();
+                
+                this.display();
+              });
+          });
+        
+        s.infoEl.remove();
+
+        div.appendChild(containerEl.lastChild as Node);
       }
-  );
-
-    
+    );
   }
 }
