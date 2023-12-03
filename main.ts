@@ -15,13 +15,15 @@ interface ViewModeByFrontmatterSettings {
   ignoreOpenFiles: boolean;
   ignoreForceViewAll: boolean;
   folders: {folder: string, viewMode: string}[];
+  files: {filePattern: string; viewMode: string}[];
 }
 
 const DEFAULT_SETTINGS: ViewModeByFrontmatterSettings = {
   debounceTimeout: 300,
   ignoreOpenFiles: false,
   ignoreForceViewAll: false,
-  folders: [{folder: '', viewMode: ''}]
+  folders: [{folder: '', viewMode: ''}],
+  files: [{filePattern: '', viewMode: ''}],
 };
 
 export default class ViewModeByFrontmatterPlugin extends Plugin {
@@ -64,8 +66,38 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
       let state = leaf.getViewState();
 
-      // check if in a declared folder
-      let folderModeState: {source: boolean, mode: string} | null = null;
+      // check if in a declared folder or file
+      let folderOrFileModeState: {source: boolean, mode: string} | null = null;
+
+      const setFolderOrFileModeState = (viewMode: string): void => {
+        const [key, mode] = viewMode.split(":").map((s) => s.trim());
+
+        if (key === "default") {
+          folderOrFileModeState = null; // ensures that no state is set
+          return;
+        } else if (!["live", "preview", "source"].includes(mode)) {
+          return;
+        }
+
+        folderOrFileModeState = { ...state.state };
+
+        folderOrFileModeState.mode = mode;
+
+        switch (key) {
+          case this.OBSIDIAN_EDITING_MODE_KEY: {
+            if (mode == "live") {
+              folderOrFileModeState.source = false;
+              folderOrFileModeState.mode = "source";
+            } else {
+              folderOrFileModeState.source = true;
+            }
+            break;
+          }
+          case this.OBSIDIAN_UI_MODE_KEY:
+            folderOrFileModeState.source = false;
+            break;
+        }
+      };
 
       for (const folderMode of this.settings.folders) {
         if (folderMode.folder !== '' && folderMode.viewMode) {
@@ -75,35 +107,8 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
               if (!state.state) { // just to be on the safe side
                 continue
               }
-                
-              const [key, mode] = folderMode.viewMode.split(':').map((s) => s.trim());
-              
-              if (key === "default") {
-                folderModeState = null; // ensures that no state is set
-                continue
-              } else if (!["live", "preview", "source"].includes(mode)) {
-                continue
-              }
 
-              folderModeState = {...state.state}
-
-              folderModeState.mode = mode
-
-              switch (key) {
-                case this.OBSIDIAN_EDITING_MODE_KEY: {
-                  if (mode == "live") {
-                    folderModeState.source = false
-                    folderModeState.mode = 'source'
-                  } else {
-                    folderModeState.source = true
-                  }
-                  break;
-                }
-                case this.OBSIDIAN_UI_MODE_KEY: 
-                  folderModeState.source = false
-                  break;
-              }
-
+              setFolderOrFileModeState(folderMode.viewMode);
             }
           } else {
             console.warn(`ForceViewMode: Folder ${folderMode.folder} does not exist or is not a folder.`);
@@ -111,11 +116,28 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         }
       }
 
-      if (folderModeState) {
-        if (state.state.mode !== folderModeState.mode || 
-          state.state.source !== folderModeState.source) {
-          state.state.mode = folderModeState.mode;
-          state.state.source = folderModeState.source;
+      for (const { filePattern, viewMode } of this.settings.files) {
+        if (!filePattern || !viewMode) {
+          continue;
+        }
+
+        if (!state.state) {
+          // just to be on the safe side
+          continue;
+        }
+
+        if (!view.file.basename.match(filePattern)) {
+          continue;
+        }
+
+        setFolderOrFileModeState(viewMode);
+      }
+
+      if (folderOrFileModeState) {
+        if (state.state.mode !== folderOrFileModeState.mode || 
+          state.state.source !== folderOrFileModeState.source) {
+          state.state.mode = folderOrFileModeState.mode;
+          state.state.source = folderOrFileModeState.source;
 
           await leaf.setViewState(state);
         }
@@ -319,6 +341,14 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             });
         });
 
+    const modes = [
+      "default",
+      "obsidianUIMode: preview",
+      "obsidianUIMode: source",
+      "obsidianEditingMode: live",
+      "obsidianEditingMode: source",
+    ]
+
     createHeader("Folders")
 
     const folderDesc = document.createDocumentFragment();
@@ -380,14 +410,6 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
               });
           })
           .addDropdown(cb => {
-            const modes = [
-              "default",
-              "obsidianUIMode: preview",
-              "obsidianUIMode: source",
-              "obsidianEditingMode: live",
-              "obsidianEditingMode: source",
-            ]
-
             modes.forEach(mode => {
               cb.addOption(mode, mode);
             });
@@ -421,5 +443,87 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
         div.appendChild(containerEl.lastChild as Node);
       }
     );
+ 
+    createHeader("Files");
+
+    const filesDesc = document.createDocumentFragment();
+    filesDesc.append(
+      "Specify a view mode for notes with specific patterns.",
+      filesDesc.createEl("br"),
+      "Note that this will force the view mode, even if it have a different view mode set in its frontmatter.",
+      filesDesc.createEl("br"),
+      "Precedence is from bottom (highest) to top (lowest)."
+    );
+
+    new Setting(this.containerEl).setDesc(filesDesc);
+
+    new Setting(this.containerEl)
+      .setDesc("Add new file")
+      .addButton((button) => {
+        button
+          .setTooltip("Add another file to the list")
+          .setButtonText("+")
+          .setCta()
+          .onClick(async () => {
+            this.plugin.settings.files.push({
+              filePattern: "",
+              viewMode: "",
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    this.plugin.settings.files.forEach((file, index) => {
+      const div = containerEl.createEl("div");
+      div.addClass("force-view-mode-div");
+      div.addClass("force-view-mode-folder");
+
+      const s = new Setting(this.containerEl)
+        .addSearch((cb) => {
+          cb.setPlaceholder(`Example: " - All$"`)
+            .setValue(file.filePattern)
+            .onChange(async (value) => {
+              if (
+                value &&
+                this.plugin.settings.files.some((e) => e.filePattern == value)
+              ) {
+                console.error("ForceViewMode: Pattern already exists", value);
+
+                return;
+              }
+
+              this.plugin.settings.files[index].filePattern = value;
+
+              await this.plugin.saveSettings();
+            });
+        })
+        .addDropdown((cb) => {
+          modes.forEach((mode) => {
+            cb.addOption(mode, mode);
+          });
+
+          cb.setValue(file.viewMode || "default").onChange(async (value) => {
+            this.plugin.settings.files[index].viewMode = value;
+
+            await this.plugin.saveSettings();
+          });
+        })
+        .addExtraButton((cb) => {
+          cb.setIcon("cross")
+            .setTooltip("Delete")
+            .onClick(async () => {
+              this.plugin.settings.files.splice(index, 1);
+
+              await this.plugin.saveSettings();
+
+              this.display();
+            });
+        });
+
+      s.infoEl.remove();
+
+      div.appendChild(containerEl.lastChild as Node);
+    });
   }
 }
