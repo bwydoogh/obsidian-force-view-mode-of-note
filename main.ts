@@ -11,12 +11,14 @@ import {
 } from "obsidian";
 
 interface ViewModeByFrontmatterSettings {
+  debounceTimeout: number;
   ignoreOpenFiles: boolean;
   ignoreForceViewAll: boolean;
   folders: {folder: string, viewMode: string}[];
 }
 
 const DEFAULT_SETTINGS: ViewModeByFrontmatterSettings = {
+  debounceTimeout: 300,
   ignoreOpenFiles: false,
   ignoreForceViewAll: false,
   folders: [{folder: '', viewMode: ''}]
@@ -190,7 +192,12 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on(
         "active-leaf-change",
-        debounce(readViewModeFromFrontmatterAndToggle, 300)
+        this.settings.debounceTimeout === 0
+          ? readViewModeFromFrontmatterAndToggle
+          : debounce(
+              readViewModeFromFrontmatterAndToggle,
+              this.settings.debounceTimeout
+            )
       )
     );
   }
@@ -300,6 +307,17 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+        .setName("Debounce timeout in milliseconds")
+        .setDesc(`Debounce timeout is the time in milliseconds after which the view mode is set. Set "0" to disable debouncing (default value is "300"). If you experience issues with the plugin, try increasing this value.`)
+        .addText((cb) => {
+            cb.setValue(String(this.plugin.settings.debounceTimeout)).onChange(async (value) => {
+                this.plugin.settings.debounceTimeout = Number(value);
+
+                await this.plugin.saveSettings();
+            });
+        });
 
     createHeader("Folders")
 
