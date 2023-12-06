@@ -284,19 +284,6 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
     new Setting(this.containerEl).setDesc(desc);
 
     new Setting(containerEl)
-      .setName("Debounce timeout in milliseconds")
-      .setDesc(`Set "0" to disable`)
-      .addText((cb) => {
-        cb.setValue(String(this.plugin.settings.debounceTimeout)).onChange(
-          async (value) => {
-            this.plugin.settings.debounceTimeout = Number(value);
-
-            await this.plugin.saveSettings();
-          }
-        );
-      });
-
-    new Setting(containerEl)
       .setName("Ignore opened files")
       .setDesc("Never change the view mode on a note which was already open.")
       .addToggle((checkbox) =>
@@ -320,6 +307,17 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+        .setName("Debounce timeout in milliseconds")
+        .setDesc(`Debounce timeout is the time in milliseconds after which the view mode is set. Set "0" to disable debouncing (default value is "300"). If you experience issues with the plugin, try increasing this value.`)
+        .addText((cb) => {
+            cb.setValue(String(this.plugin.settings.debounceTimeout)).onChange(async (value) => {
+                this.plugin.settings.debounceTimeout = Number(value);
+
+                await this.plugin.saveSettings();
+            });
+        });
 
     createHeader("Folders")
 
