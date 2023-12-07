@@ -448,11 +448,13 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
 
     const filesDesc = document.createDocumentFragment();
     filesDesc.append(
-      "Specify a view mode for notes with specific patterns.",
+      "Specify a view mode for notes with specific patterns (regular expression; example \" - All$\" for all notes ending with \" - All\" or \"1900-01\" for all daily notes starting with \"1900-01\"",
       filesDesc.createEl("br"),
       "Note that this will force the view mode, even if it have a different view mode set in its frontmatter.",
       filesDesc.createEl("br"),
-      "Precedence is from bottom (highest) to top (lowest)."
+      "Precedence is from bottom (highest) to top (lowest).",
+      filesDesc.createEl("br"),
+      "Notice that configuring a file pattern will override the folder configuration for the same file."
     );
 
     new Setting(this.containerEl).setDesc(filesDesc);
@@ -481,7 +483,7 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
 
       const s = new Setting(this.containerEl)
         .addSearch((cb) => {
-          cb.setPlaceholder(`Example: " - All$"`)
+          cb.setPlaceholder(`Example: " - All$" or "1900-01")`)
             .setValue(file.filePattern)
             .onChange(async (value) => {
               if (
