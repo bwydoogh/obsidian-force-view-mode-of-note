@@ -66,6 +66,40 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
 
       let state = leaf.getViewState();
 
+      // only touch the view state when it actually changes; every call to
+      // setViewState rebuilds the view, which undoes what other plugins did
+      // to the tab (e.g. its title or icon)
+      const setViewStateIfChanged = async (mode: string, source: boolean) => {
+        if (state.state.mode === mode && state.state.source === source) {
+          return;
+        }
+
+        state.state.mode = mode;
+        state.state.source = source;
+
+        await leaf.setViewState(state);
+      };
+
+      // ... get frontmatter data and search for a key indicating the desired view mode
+      // and when the given key is present ... set it to the declared mode
+      const fileCache = this.app.metadataCache.getFileCache(view.file);
+      const fileDeclaredUIMode =
+        fileCache !== null && fileCache.frontmatter
+          ? fileCache.frontmatter[this.OBSIDIAN_UI_MODE_KEY]
+          : null;
+      const fileDeclaredEditingMode =
+        fileCache !== null && fileCache.frontmatter
+          ? fileCache.frontmatter[this.OBSIDIAN_EDITING_MODE_KEY]
+          : null;
+
+      const defaultEditingModeIsLivePreview = this.app.vault.config.livePreview === undefined ? true : this.app.vault.config.livePreview;
+
+      // editing mode to use when only the view mode is forced: the one declared
+      // in frontmatter, otherwise the Obsidian default
+      const editingModeIsSource = ["source", "live"].includes(fileDeclaredEditingMode)
+        ? fileDeclaredEditingMode == "source"
+        : !defaultEditingModeIsLivePreview;
+
       // check if in a declared folder or file
       let folderOrFileModeState: {source: boolean, mode: string} | null = null;
 
@@ -94,7 +128,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
             break;
           }
           case this.OBSIDIAN_UI_MODE_KEY:
-            folderOrFileModeState.source = false;
+            folderOrFileModeState.source = editingModeIsSource;
             break;
         }
       };
@@ -134,50 +168,20 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
       }
 
       if (folderOrFileModeState) {
-        if (state.state.mode !== folderOrFileModeState.mode || 
-          state.state.source !== folderOrFileModeState.source) {
-          state.state.mode = folderOrFileModeState.mode;
-          state.state.source = folderOrFileModeState.source;
-
-          await leaf.setViewState(state);
-        }
+        await setViewStateIfChanged(folderOrFileModeState.mode, folderOrFileModeState.source);
 
         return;
       }
 
-      // ... get frontmatter data and search for a key indicating the desired view mode
-      // and when the given key is present ... set it to the declared mode
-      const fileCache = this.app.metadataCache.getFileCache(view.file);
-      const fileDeclaredUIMode =
-        fileCache !== null && fileCache.frontmatter
-          ? fileCache.frontmatter[this.OBSIDIAN_UI_MODE_KEY]
-          : null;
-      const fileDeclaredEditingMode =
-        fileCache !== null && fileCache.frontmatter
-          ? fileCache.frontmatter[this.OBSIDIAN_EDITING_MODE_KEY]
-          : null;
-
-
-      if (fileDeclaredUIMode) {
-        if (
-          ["source", "preview", "live"].includes(fileDeclaredUIMode) &&
-          view.getMode() !== fileDeclaredUIMode
-        ) {
-          state.state.mode = fileDeclaredUIMode;
-        }
-      }
-
-      if (fileDeclaredEditingMode) {
-        const shouldBeSourceMode = fileDeclaredEditingMode == 'source';
-        if (
-          ["source", "live"].includes(fileDeclaredEditingMode)
-        ) {
-          state.state.source = shouldBeSourceMode;
-        }
-      }
-
       if (fileDeclaredUIMode || fileDeclaredEditingMode) {
-        await leaf.setViewState(state);
+        const mode = ["source", "preview", "live"].includes(fileDeclaredUIMode)
+          ? fileDeclaredUIMode
+          : state.state.mode;
+        const source = ["source", "live"].includes(fileDeclaredEditingMode)
+          ? fileDeclaredEditingMode == "source"
+          : state.state.source;
+
+        await setViewStateIfChanged(mode, source);
 
         if (true == this.settings.ignoreOpenFiles) {
           this.openedFiles = resetOpenedNotes(this.app);
@@ -190,18 +194,8 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
         ? this.app.vault.config.defaultViewMode
         : "source";
 
-      const defaultEditingModeIsLivePreview = this.app.vault.config.livePreview === undefined ? true : this.app.vault.config.livePreview;
-
       if (!this.settings.ignoreForceViewAll) {
-        let state = leaf.getViewState();
-
-        if (view.getMode() !== defaultViewMode) {
-          state.state.mode = defaultViewMode;
-        }
-
-        state.state.source = defaultEditingModeIsLivePreview ? false : true;
-
-        await leaf.setViewState(state);
+        await setViewStateIfChanged(defaultViewMode, !defaultEditingModeIsLivePreview);
 
         this.openedFiles = resetOpenedNotes(this.app);
       }
@@ -290,17 +284,17 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
       desc.createEl("code", { text: "obsidianUIMode" }),
       ", which can have the value ",
       desc.createEl("code", { text: "source" }),
-      " or ",
+      " (editing view) or ",
       desc.createEl("code", { text: "preview" }),
-      ".",
+      " (reading view).",
       desc.createEl("br"),
       "Changing the editing mode happens by declaring the key ",
       desc.createEl("code", { text: "obsidianEditingMode" }),
       "; it takes ",
       desc.createEl("code", { text: "live" }),
-      " or ",
+      " (live preview) or ",
       desc.createEl("code", { text: "source" }),
-      " as value."
+      " (source mode) as value."
     );
 
     new Setting(this.containerEl).setDesc(desc);
@@ -341,13 +335,14 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             });
         });
 
-    const modes = [
-      "default",
-      "obsidianUIMode: preview",
-      "obsidianUIMode: source",
-      "obsidianEditingMode: live",
-      "obsidianEditingMode: source",
-    ]
+    // the key is the stored value, the label what is shown in the dropdown
+    const modes: Record<string, string> = {
+      "default": "default",
+      "obsidianUIMode: preview": "obsidianUIMode: preview (reading view)",
+      "obsidianUIMode: source": "obsidianUIMode: source (editing view)",
+      "obsidianEditingMode: live": "obsidianEditingMode: live (live preview)",
+      "obsidianEditingMode: source": "obsidianEditingMode: source (source mode)",
+    }
 
     createHeader("Folders")
 
@@ -410,9 +405,7 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
               });
           })
           .addDropdown(cb => {
-            modes.forEach(mode => {
-              cb.addOption(mode, mode);
-            });
+            cb.addOptions(modes);
 
             cb.setValue(folderMode.viewMode || "default")
               .onChange(async (value) => {
@@ -501,9 +494,7 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             });
         })
         .addDropdown((cb) => {
-          modes.forEach((mode) => {
-            cb.addOption(mode, mode);
-          });
+          cb.addOptions(modes);
 
           cb.setValue(file.viewMode || "default").onChange(async (value) => {
             this.plugin.settings.files[index].viewMode = value;

@@ -3,7 +3,7 @@
 	"name": "Force note view mode",
 	"version": "1.2.2",
 	"minAppVersion": "0.9.12",
-	"description": "This plugin allows to force the view mode and editing mode for a note by using front matter",
+	"description": "Force the view mode and editing mode of a note through the front matter keys 'obsidianUIMode' and 'obsidianEditingMode', or per folder or file pattern.",
 	"author": "Benny Wydooghe",
 	"authorUrl": "https://i-net.be",
 	"isDesktopOnly": false
