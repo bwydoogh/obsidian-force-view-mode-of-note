@@ -174,12 +174,17 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
       }
 
       if (fileDeclaredUIMode || fileDeclaredEditingMode) {
-        const mode = ["source", "preview", "live"].includes(fileDeclaredUIMode)
+        const fileDeclaredUIModeIsValid = ["source", "preview", "live"].includes(fileDeclaredUIMode);
+        const mode = fileDeclaredUIModeIsValid
           ? fileDeclaredUIMode
           : state.state.mode;
-        const source = ["source", "live"].includes(fileDeclaredEditingMode)
-          ? fileDeclaredEditingMode == "source"
-          : state.state.source;
+        // when the view mode is forced, fall back to the Obsidian default
+        // editing mode instead of whatever the leaf happened to be in
+        const source = fileDeclaredUIModeIsValid
+          ? editingModeIsSource
+          : ["source", "live"].includes(fileDeclaredEditingMode)
+            ? fileDeclaredEditingMode == "source"
+            : state.state.source;
 
         await setViewStateIfChanged(mode, source);
 
