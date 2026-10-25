@@ -1,9 +1,9 @@
 {
 	"id": "obsidian-view-mode-by-frontmatter",
 	"name": "Force note view mode",
-	"version": "1.2.3",
-	"minAppVersion": "0.9.12",
-	"description": "Force the view mode and editing mode of a note through the front matter keys 'obsidianUIMode' and 'obsidianEditingMode', or per folder or file pattern.",
+	"version": "1.3.0",
+	"minAppVersion": "1.1.0",
+	"description": "Force a note's view mode and editing mode through front matter, or per folder or file pattern.",
 	"author": "Benny Wydooghe",
 	"authorUrl": "https://i-net.be",
 	"isDesktopOnly": false
