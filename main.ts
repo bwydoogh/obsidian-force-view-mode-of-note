@@ -8,6 +8,8 @@ import {
   PluginSettingTab,
   Setting,
   debounce,
+  requireApiVersion,
+  SettingDefinitionItem,
 } from "obsidian";
 
 interface ViewModeByFrontmatterSettings {
@@ -32,7 +34,7 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
   OBSIDIAN_UI_MODE_KEY = "obsidianUIMode";
   OBSIDIAN_EDITING_MODE_KEY = "obsidianEditingMode";
 
-  openedFiles: String[];
+  openedFiles: string[];
 
   async onload() {
     await this.loadSettings();
@@ -231,19 +233,19 @@ export default class ViewModeByFrontmatterPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  async onunload() {
+  onunload() {
     this.openedFiles = [];
   }
 }
 
-function alreadyOpen(currFile: TFile, openedFiles: String[]): boolean {
-  const leavesWithSameNote: String[] = [];
+function alreadyOpen(currFile: TFile, openedFiles: string[]): boolean {
+  const leavesWithSameNote: string[] = [];
 
   if (currFile == null) {
     return false;
   }
 
-  openedFiles.forEach((openedFile: String) => {
+  openedFiles.forEach((openedFile: string) => {
     if (openedFile == currFile.basename) {
       leavesWithSameNote.push(openedFile);
     }
@@ -252,8 +254,8 @@ function alreadyOpen(currFile: TFile, openedFiles: String[]): boolean {
   return leavesWithSameNote.length != 0;
 }
 
-function resetOpenedNotes(app: App): String[] {
-  let openedFiles: String[] = [];
+function resetOpenedNotes(app: App): string[] {
+  let openedFiles: string[] = [];
 
   app.workspace.iterateAllLeaves((leaf) => {
     let view = leaf.view instanceof MarkdownView ? leaf.view : null;
@@ -268,22 +270,32 @@ function resetOpenedNotes(app: App): String[] {
   return openedFiles;
 }
 
-class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
-  plugin: ViewModeByFrontmatterPlugin;
+// the key is the stored value, the label what is shown in the dropdown
+const VIEW_MODES: Record<string, string> = {
+  "default": "default",
+  "obsidianUIMode: preview": "obsidianUIMode: preview (reading view)",
+  "obsidianUIMode: source": "obsidianUIMode: source (editing view)",
+  "obsidianEditingMode: live": "obsidianEditingMode: live (live preview)",
+  "obsidianEditingMode: source": "obsidianEditingMode: source (source mode)",
+};
 
-  constructor(app: App, plugin: ViewModeByFrontmatterPlugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
+const IGNORE_OPEN_FILES = {
+  name: "Ignore opened files",
+  desc: "Never change the view mode on a note which was already open.",
+};
 
-  display(): void {
-    let { containerEl } = this;
+const IGNORE_FORCE_VIEW_ALL = {
+  name: "Ignore force view when not in frontmatter",
+  desc: "Never change the view mode on a note that was opened from another one in a certain view mode",
+};
 
-    containerEl.empty();
+const DEBOUNCE_TIMEOUT = {
+  name: "Debounce timeout in milliseconds",
+  desc: `Debounce timeout is the time in milliseconds after which the view mode is set. Set "0" to disable debouncing (default value is "300"). If you experience issues with the plugin, try increasing this value.`,
+};
 
-    const createHeader = (text: string) => containerEl.createEl("h2", { text });
-
-    const desc = document.createDocumentFragment();
+function keysDescription(): DocumentFragment {
+  return createFragment((desc) => {
     desc.append(
       "Changing the view mode can be done through the key ",
       desc.createEl("code", { text: "obsidianUIMode" }),
@@ -301,12 +313,125 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
       desc.createEl("code", { text: "source" }),
       " (source mode) as value."
     );
+  });
+}
 
-    new Setting(this.containerEl).setDesc(desc);
+function foldersDescription(): DocumentFragment {
+  return createFragment((desc) => {
+    desc.append(
+      "Specify a view mode for notes in a given folder.",
+      desc.createEl("br"),
+      "Note that this will force the view mode on all the notes in the folder, even if they have a different view mode set in their frontmatter.",
+      desc.createEl("br"),
+      "Precedence is from bottom (highest) to top (lowest), so if you have child folders specified, make sure to put them below their parent folder."
+    );
+  });
+}
+
+function filesDescription(): DocumentFragment {
+  return createFragment((desc) => {
+    desc.append(
+      "Specify a view mode for notes with specific patterns (regular expression; example \" - All$\" for all notes ending with \" - All\" or \"1900-01\" for all daily notes starting with \"1900-01\"",
+      desc.createEl("br"),
+      "Note that this will force the view mode, even if it have a different view mode set in its frontmatter.",
+      desc.createEl("br"),
+      "Precedence is from bottom (highest) to top (lowest).",
+      desc.createEl("br"),
+      "Notice that configuring a file pattern will override the folder configuration for the same file."
+    );
+  });
+}
+
+class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
+  plugin: ViewModeByFrontmatterPlugin;
+
+  constructor(app: App, plugin: ViewModeByFrontmatterPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  // Obsidian 1.13 and later build the tab from these definitions, which also
+  // puts the settings in the settings search; older versions call display()
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    const { folders, files } = this.plugin.settings;
+
+    return [
+      { name: "Front matter keys", desc: keysDescription() },
+      { ...IGNORE_OPEN_FILES, control: { type: "toggle", key: "ignoreOpenFiles" } },
+      { ...IGNORE_FORCE_VIEW_ALL, control: { type: "toggle", key: "ignoreForceViewAll" } },
+      {
+        ...DEBOUNCE_TIMEOUT,
+        control: {
+          type: "number",
+          key: "debounceTimeout",
+          min: 0,
+          defaultValue: DEFAULT_SETTINGS.debounceTimeout,
+        },
+      },
+      {
+        type: "list",
+        heading: "Folders",
+        items: folders.map((folderMode, index) => ({
+          name: folderMode.folder,
+          searchable: false,
+          render: (setting: Setting) => {
+            this.addFolderControls(setting, index);
+            setting.infoEl.remove();
+            setting.settingEl.addClass("force-view-mode-rule");
+          },
+        })),
+        addItem: {
+          name: "Add folder",
+          action: () => void this.addRule(folders, { folder: "", viewMode: "" }),
+        },
+        onDelete: (index) => void this.deleteRule(folders, index),
+        onReorder: (from, to) => void this.moveRule(folders, from, to),
+      },
+      // a list header holds only its heading and add button, so the
+      // explanation goes below the rules
+      {
+        type: "group",
+        items: [{ name: "Folder rules", desc: foldersDescription() }],
+      },
+      {
+        type: "list",
+        heading: "Files",
+        items: files.map((file, index) => ({
+          name: file.filePattern,
+          searchable: false,
+          render: (setting: Setting) => {
+            this.addFileControls(setting, index);
+            setting.infoEl.remove();
+            setting.settingEl.addClass("force-view-mode-rule");
+          },
+        })),
+        addItem: {
+          name: "Add file",
+          action: () => void this.addRule(files, { filePattern: "", viewMode: "" }),
+        },
+        onDelete: (index) => void this.deleteRule(files, index),
+        onReorder: (from, to) => void this.moveRule(files, from, to),
+      },
+      // a list header holds only its heading and add button, so the
+      // explanation goes below the rules
+      {
+        type: "group",
+        items: [{ name: "File rules", desc: filesDescription() }],
+      },
+    ];
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    const { folders, files } = this.plugin.settings;
+
+    containerEl.empty();
+
+    new Setting(containerEl).setDesc(keysDescription());
 
     new Setting(containerEl)
-      .setName("Ignore opened files")
-      .setDesc("Never change the view mode on a note which was already open.")
+      .setName(IGNORE_OPEN_FILES.name)
+      .setDesc(IGNORE_OPEN_FILES.desc)
       .addToggle((checkbox) =>
         checkbox
           .setValue(this.plugin.settings.ignoreOpenFiles)
@@ -316,10 +441,8 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
           })
       );
     new Setting(containerEl)
-      .setName("Ignore force view when not in frontmatter")
-      .setDesc(
-        "Never change the view mode on a note that was opened from another one in a certain view mode"
-      )
+      .setName(IGNORE_FORCE_VIEW_ALL.name)
+      .setDesc(IGNORE_FORCE_VIEW_ALL.desc)
       .addToggle((checkbox) => {
         checkbox
           .setValue(this.plugin.settings.ignoreForceViewAll)
@@ -330,8 +453,8 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-        .setName("Debounce timeout in milliseconds")
-        .setDesc(`Debounce timeout is the time in milliseconds after which the view mode is set. Set "0" to disable debouncing (default value is "300"). If you experience issues with the plugin, try increasing this value.`)
+        .setName(DEBOUNCE_TIMEOUT.name)
+        .setDesc(DEBOUNCE_TIMEOUT.desc)
         .addText((cb) => {
             cb.setValue(String(this.plugin.settings.debounceTimeout)).onChange(async (value) => {
                 this.plugin.settings.debounceTimeout = Number(value);
@@ -340,188 +463,148 @@ class ViewModeByFrontmatterSettingTab extends PluginSettingTab {
             });
         });
 
-    // the key is the stored value, the label what is shown in the dropdown
-    const modes: Record<string, string> = {
-      "default": "default",
-      "obsidianUIMode: preview": "obsidianUIMode: preview (reading view)",
-      "obsidianUIMode: source": "obsidianUIMode: source (editing view)",
-      "obsidianEditingMode: live": "obsidianEditingMode: live (live preview)",
-      "obsidianEditingMode: source": "obsidianEditingMode: source (source mode)",
-    }
+    new Setting(containerEl).setName("Folders").setHeading();
 
-    createHeader("Folders")
+    new Setting(containerEl).setDesc(foldersDescription());
 
-    const folderDesc = document.createDocumentFragment();
-    folderDesc.append(
-        "Specify a view mode for notes in a given folder.",
-        folderDesc.createEl("br"),
-        "Note that this will force the view mode on all the notes in the folder, even if they have a different view mode set in their frontmatter.",
-        folderDesc.createEl("br"),
-        "Precedence is from bottom (highest) to top (lowest), so if you have child folders specified, make sure to put them below their parent folder."
-    );
-
-    new Setting(this.containerEl).setDesc(folderDesc);
-
-    new Setting(this.containerEl)
+    new Setting(containerEl)
       .setDesc("Add new folder")
       .addButton((button) => {
         button
           .setTooltip("Add another folder to the list")
           .setButtonText("+")
           .setCta()
-          .onClick(async () => {
-            this.plugin.settings.folders.push({
-              folder: "",
-              viewMode: "",
-            });
-            await this.plugin.saveSettings();
-            this.display();
-          });
+          .onClick(() => this.addRule(folders, { folder: "", viewMode: "" }));
       });
 
+    folders.forEach((_, index) => {
+      const s = new Setting(
+        containerEl.createDiv({ cls: ["force-view-mode-div", "force-view-mode-folder"] })
+      );
 
-    this.plugin.settings.folders.forEach(
-      (folderMode, index) => {
-        const div = containerEl.createEl("div");
-        div.addClass("force-view-mode-div")
-        div.addClass("force-view-mode-folder")
+      this.addFolderControls(s, index);
+      s.addExtraButton((cb) => {
+        cb.setIcon("cross")
+          .setTooltip("Delete")
+          .onClick(() => this.deleteRule(folders, index));
+      });
+      s.infoEl.remove();
+    });
 
-        const s = new Setting(this.containerEl)
-          .addSearch((cb) => {
-            cb.setPlaceholder("Example: folder1/templates")
-              .setValue(folderMode.folder)
-              .onChange(async (newFolder) => {
-                if (
-                  newFolder &&
-                  this.plugin.settings.folders.some(
-                    (e) => e.folder == newFolder
-                  )
-                ) {
-                  console.error("ForceViewMode: This folder already has a template associated with", newFolder);
+    new Setting(containerEl).setName("Files").setHeading();
 
-                  return;
-                }
+    new Setting(containerEl).setDesc(filesDescription());
 
-                this.plugin.settings.folders[
-                  index
-                ].folder = newFolder;
-
-                await this.plugin.saveSettings();
-              });
-          })
-          .addDropdown(cb => {
-            cb.addOptions(modes);
-
-            cb.setValue(folderMode.viewMode || "default")
-              .onChange(async (value) => {
-                this.plugin.settings.folders[
-                  index
-                ].viewMode = value;
-
-                await this.plugin.saveSettings();
-              });
-          })
-          .addExtraButton((cb) => {
-            cb.setIcon("cross")
-              .setTooltip("Delete")
-              .onClick(async () => {
-                this.plugin.settings.folders.splice(
-                  index,
-                  1
-                );
-
-                await this.plugin.saveSettings();
-                
-                this.display();
-              });
-          });
-        
-        s.infoEl.remove();
-
-        div.appendChild(containerEl.lastChild as Node);
-      }
-    );
- 
-    createHeader("Files");
-
-    const filesDesc = document.createDocumentFragment();
-    filesDesc.append(
-      "Specify a view mode for notes with specific patterns (regular expression; example \" - All$\" for all notes ending with \" - All\" or \"1900-01\" for all daily notes starting with \"1900-01\"",
-      filesDesc.createEl("br"),
-      "Note that this will force the view mode, even if it have a different view mode set in its frontmatter.",
-      filesDesc.createEl("br"),
-      "Precedence is from bottom (highest) to top (lowest).",
-      filesDesc.createEl("br"),
-      "Notice that configuring a file pattern will override the folder configuration for the same file."
-    );
-
-    new Setting(this.containerEl).setDesc(filesDesc);
-
-    new Setting(this.containerEl)
+    new Setting(containerEl)
       .setDesc("Add new file")
       .addButton((button) => {
         button
           .setTooltip("Add another file to the list")
           .setButtonText("+")
           .setCta()
-          .onClick(async () => {
-            this.plugin.settings.files.push({
-              filePattern: "",
-              viewMode: "",
-            });
-            await this.plugin.saveSettings();
-            this.display();
-          });
+          .onClick(() => this.addRule(files, { filePattern: "", viewMode: "" }));
       });
 
-    this.plugin.settings.files.forEach((file, index) => {
-      const div = containerEl.createEl("div");
-      div.addClass("force-view-mode-div");
-      div.addClass("force-view-mode-folder");
+    files.forEach((_, index) => {
+      const s = new Setting(
+        containerEl.createDiv({ cls: ["force-view-mode-div", "force-view-mode-folder"] })
+      );
 
-      const s = new Setting(this.containerEl)
-        .addSearch((cb) => {
-          cb.setPlaceholder(`Example: " - All$" or "1900-01")`)
-            .setValue(file.filePattern)
-            .onChange(async (value) => {
-              if (
-                value &&
-                this.plugin.settings.files.some((e) => e.filePattern == value)
-              ) {
-                console.error("ForceViewMode: Pattern already exists", value);
+      this.addFileControls(s, index);
+      s.addExtraButton((cb) => {
+        cb.setIcon("cross")
+          .setTooltip("Delete")
+          .onClick(() => this.deleteRule(files, index));
+      });
+      s.infoEl.remove();
+    });
+  }
 
-                return;
-              }
+  private addFolderControls(setting: Setting, index: number): void {
+    const { folders } = this.plugin.settings;
 
-              this.plugin.settings.files[index].filePattern = value;
+    setting
+      .addSearch((cb) => {
+        cb.setPlaceholder("Example: folder1/templates")
+          .setValue(folders[index].folder)
+          .onChange(async (newFolder) => {
+            if (newFolder && folders.some((e) => e.folder == newFolder)) {
+              console.error("ForceViewMode: This folder already has a template associated with", newFolder);
 
-              await this.plugin.saveSettings();
-            });
-        })
-        .addDropdown((cb) => {
-          cb.addOptions(modes);
+              return;
+            }
 
-          cb.setValue(file.viewMode || "default").onChange(async (value) => {
-            this.plugin.settings.files[index].viewMode = value;
+            folders[index].folder = newFolder;
 
             await this.plugin.saveSettings();
           });
-        })
-        .addExtraButton((cb) => {
-          cb.setIcon("cross")
-            .setTooltip("Delete")
-            .onClick(async () => {
-              this.plugin.settings.files.splice(index, 1);
+      })
+      .addDropdown((cb) => {
+        cb.addOptions(VIEW_MODES);
 
-              await this.plugin.saveSettings();
+        cb.setValue(folders[index].viewMode || "default").onChange(async (value) => {
+          folders[index].viewMode = value;
 
-              this.display();
-            });
+          await this.plugin.saveSettings();
         });
+      });
+  }
 
-      s.infoEl.remove();
+  private addFileControls(setting: Setting, index: number): void {
+    const { files } = this.plugin.settings;
 
-      div.appendChild(containerEl.lastChild as Node);
-    });
+    setting
+      .addSearch((cb) => {
+        cb.setPlaceholder(`Example: " - All$" or "1900-01")`)
+          .setValue(files[index].filePattern)
+          .onChange(async (value) => {
+            if (value && files.some((e) => e.filePattern == value)) {
+              console.error("ForceViewMode: Pattern already exists", value);
+
+              return;
+            }
+
+            files[index].filePattern = value;
+
+            await this.plugin.saveSettings();
+          });
+      })
+      .addDropdown((cb) => {
+        cb.addOptions(VIEW_MODES);
+
+        cb.setValue(files[index].viewMode || "default").onChange(async (value) => {
+          files[index].viewMode = value;
+
+          await this.plugin.saveSettings();
+        });
+      });
+  }
+
+  private async addRule<T>(rules: T[], rule: T): Promise<void> {
+    rules.push(rule);
+    await this.plugin.saveSettings();
+    this.refresh();
+  }
+
+  private async deleteRule<T>(rules: T[], index: number): Promise<void> {
+    rules.splice(index, 1);
+    await this.plugin.saveSettings();
+    this.refresh();
+  }
+
+  private async moveRule<T>(rules: T[], from: number, to: number): Promise<void> {
+    rules.splice(to, 0, ...rules.splice(from, 1));
+    await this.plugin.saveSettings();
+    this.refresh();
+  }
+
+  // re-render after rules were added, removed or moved; Obsidian 1.13 and
+  // later no longer call display() once getSettingDefinitions() is implemented
+  private refresh(): void {
+    if (requireApiVersion("1.13.0")) {
+      this.update();
+    } else {
+      this.display();
+    }
   }
 }

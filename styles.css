@@ -11,3 +11,17 @@
 .force-view-mode-folder > .setting-item > .setting-item-control > *:nth-child(2) {
     flex: 1 1 0;
 }
+
+/* rule rows in the settings lists of Obsidian 1.13 and later */
+.force-view-mode-rule > .setting-item-control {
+    justify-content: space-around;
+    width: 100%;
+}
+
+.force-view-mode-rule > .setting-item-control > .search-input-container {
+    flex: 2 1 0;
+}
+
+.force-view-mode-rule > .setting-item-control > .dropdown {
+    flex: 1 1 0;
+}
